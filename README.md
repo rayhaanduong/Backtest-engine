@@ -8,7 +8,7 @@ To evaluate the relevance of a pattern, we compute an information criterion base
 
 By combining:
 
-Geometric purity (patterns leading to cleaner moves), and
+Geometric meaning (patterns that historically generated profits) and
 
 Information-theoretic strength (confidence in directional bias),
 
