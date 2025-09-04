@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from Extract_patterns import get_patterns_labels_pnls, construct_filtered_sets, match_patterns, IG
+import matplotlib.pyplot as plt
 
 
 def get_rolling_windows(df, train_months=3, val_months=1, test_months=1):
@@ -38,6 +39,35 @@ def get_rolling_windows(df, train_months=3, val_months=1, test_months=1):
         current = test_start
 
     return windows
+
+
+
+
+def plot_rolling_windows(df, windows):
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6), sharex=True, gridspec_kw={'height_ratios': [2, 1]})
+
+
+    ax1.plot(df.index, df["Close"], color='blue', lw=1.5)
+    ax1.set_ylabel('Close Price')
+    ax1.set_title('Close Price Over Time')
+    ax1.grid(True)
+
+    colors = ['green', 'orange', 'red']  # train, val, test
+    for i, (train, val, test) in enumerate(windows):
+        ax2.plot(train.index, [i]*len(train), color=colors[0], lw=6, label='Train' if i==0 else "")
+        ax2.plot(val.index, [i]*len(val), color=colors[1], lw=6, label='Validation' if i==0 else "")
+        ax2.plot(test.index, [i]*len(test), color=colors[2], lw=6, label='Test' if i==0 else "")
+
+    ax2.set_yticks(range(len(windows)))
+    ax2.set_yticklabels([f'Window {i}' for i in range(len(windows))])
+    ax2.set_xlabel('Date')
+    ax2.set_title('Rolling Train/Validation/Test Windows')
+    ax2.legend(loc='upper right')
+    ax2.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
 
 
 
@@ -127,16 +157,16 @@ def backtest(all_trades, opens, close, bps=2, target=10, stoploss=10):
 
 def  evaluate_window(train, val, theta, diameter_neigh, rho, threshold, horizon_train, alpha, beta, target, stoploss, bps, val_months):
     
-     # --- Train phase ---
+     #Train
     patterns, pnls, labels = get_patterns_labels_pnls(train, threshold=threshold, window=4, horizon=horizon_train)
     
     if len(patterns) == 0 :
-        return -999
+        return 0 #prv -999
     
     
     IG_score = IG(labels, patterns, theta=diameter_neigh)
 
-    # Decay for recency weighting
+    
     time_weights = np.exp(-beta * np.arange(len(pnls))[::-1])
     time_weights /= time_weights.sum()
 
@@ -148,13 +178,13 @@ def  evaluate_window(train, val, theta, diameter_neigh, rho, threshold, horizon_
     B_prime, S_prime = construct_filtered_sets(labels, patterns, Score, theta)
     
     if len(B_prime) == 0 or len(S_prime) == 0:
-        return -999
+        return 0 #prv -999
 
-    # --- Validation phase ---
+
     pattern_val = get_patterns_labels_pnls(val, threshold=threshold, window=4, horizon=5, pattern_only=True)
     B_matches, S_matches = match_patterns(pattern_val, B_prime, S_prime, patterns, rho, k=1)
 
-    # Build trades
+ 
     all_trades = []
     for idx in B_matches: all_trades.append({"idx": idx, "is_buy": True})
     for idx in S_matches: all_trades.append({"idx": idx, "is_buy": False})
@@ -165,7 +195,7 @@ def  evaluate_window(train, val, theta, diameter_neigh, rho, threshold, horizon_
     
 
     if len(trades) < 10: 
-        return -999
+        return 0
 
     pnls = np.array([t["pnl"] for t in trades])
     mean_pnl = np.mean(pnls)
@@ -173,7 +203,7 @@ def  evaluate_window(train, val, theta, diameter_neigh, rho, threshold, horizon_
     sharpe_period = mean_pnl / std_pnl
     
     months_per_year = 12
-    sharpe_annualized = sharpe_period * np.sqrt(months_per_year / val_months)
+    sharpe_annualized = sharpe_period * np.sqrt(months_per_year / val_months * len(trades))
     
 
 
